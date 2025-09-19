@@ -1,4 +1,4 @@
-package cn.har01d.novelspider
+package cn.har01d.novel.spider
 
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication

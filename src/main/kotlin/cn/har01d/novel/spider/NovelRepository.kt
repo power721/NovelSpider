@@ -1,4 +1,4 @@
-package cn.har01d.novelspider
+package cn.har01d.novel.spider
 
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable

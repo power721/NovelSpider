@@ -26,5 +26,5 @@ spider:
 
 logging:
   level:
-    com.example.novelspider: INFO
+    cn.har01d.novel.spider: INFO
     org.springframework: WARN

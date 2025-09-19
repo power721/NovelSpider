@@ -1,4 +1,4 @@
-package cn.har01d.novelspider
+package cn.har01d.novel.spider
 
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
