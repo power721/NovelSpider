@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: NovelSpider
+  datasource:
+    url: jdbc:mysql://localhost:3306/novels?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC
+    username: novel
+    password: 5f540c83-a14f-430d-8e0c-a2c9d1f810f9
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+    show-sql: true
+
+server:
+  port: 3000
+
+spider:
+  base-url: http://www.999xiaoshuo.cc
+  timeout: 10000
+  max-pages: 5
+
+logging:
+  level:
+    com.example.novelspider: INFO
+    org.springframework: WARN
