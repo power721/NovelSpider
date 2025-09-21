@@ -41,6 +41,8 @@
             :value="c"
         />
       </el-select>
+
+      <el-button @click="refresh">刷新</el-button>
     </div>
 
     <!-- Results Table -->
@@ -49,6 +51,7 @@
         :data="results"
         style="width: 100%"
         border
+        @sort-change="handleSort"
     >
       <el-table-column prop="title" label="标题" min-width="200">
         <template #default="{ row }">
@@ -62,16 +65,20 @@
           </el-link>
         </template>
       </el-table-column>
-      <el-table-column prop="category" label="分类" width="90">
+      <el-table-column prop="category" label="分类" width="70">
         <template #default="{ row }">
           <el-link type="success" @click="filterByCategory(row.category)">
             {{ row.category || '未分类' }}
           </el-link>
         </template>
       </el-table-column>
-      <el-table-column prop="status" label="状态" width="90"/>
-      <el-table-column prop="wordCount" label="字数" width="100"/>
-      <el-table-column prop="latestUpdate" label="最新更新" width="120"/>
+      <el-table-column prop="status" label="状态" width="70"/>
+      <el-table-column prop="wordCount" label="字数" width="80" sortable="custom">
+        <template #default="{ row }">
+          {{row.wordCount / 10000}}万
+        </template>
+      </el-table-column>
+      <el-table-column prop="updatedAt" label="最新更新" width="150" sortable="custom"/>
       <el-table-column prop="description" label="简介" min-width="300" show-overflow-tooltip/>
     </el-table>
 
@@ -93,6 +100,7 @@ import {onMounted, ref} from "vue"
 import axios from "axios"
 
 const query = ref("")
+const sort = ref("updatedAt,desc")
 const status = ref("")
 const category = ref("")
 const author = ref("")
@@ -110,6 +118,23 @@ const categories = ref([
   "学习", "耽美", ""
 ])
 
+const crawl = () => {
+  axios.post('/api/novels/crawl').then()
+}
+
+const refresh = () => {
+  handleSearch()
+}
+
+const handleSort = ({prop, order}) => {
+  if (order) {
+    sort.value = prop + "," + (order === 'ascending' ? 'asc' : 'desc')
+  } else {
+    sort.value = "updatedAt,desc"
+  }
+  handleSearch()
+}
+
 const handleSearch = async () => {
   loading.value = true
   try {
@@ -121,7 +146,7 @@ const handleSearch = async () => {
         category: category.value,
         page: page.value,
         size: pageSize.value,
-        sort: 'updatedAt,desc'
+        sort: sort.value
       }
     })
     results.value = res.data.content

@@ -4,6 +4,7 @@ import jakarta.persistence.*
 import java.time.LocalDateTime
 
 @Entity
+@Table(name = "novels")
 data class Novel(
     @Id
     var id: Long = 0,
@@ -20,31 +21,16 @@ data class Novel(
     @Column(length = 20)
     var status: String = "",
 
-    @Column(name = "word_count", length = 50)
-    var wordCount: String = "",
-
-    @Column(name = "latest_update", length = 100)
-    var latestUpdate: String = "",
+    var wordCount: Long = 0,
 
     @Column(columnDefinition = "TEXT")
     var description: String = "",
 
-    @Column(name = "novel_url", length = 500)
+    @Column(length = 500)
     var novelUrl: String = "",
 
-    @Column(name = "created_at", updatable = false)
+    @Column(updatable = false)
     var createdAt: LocalDateTime = LocalDateTime.now(),
 
     var updatedAt: LocalDateTime = LocalDateTime.now()
-) {
-    @PrePersist
-    fun onCreate() {
-        createdAt = LocalDateTime.now()
-        updatedAt = LocalDateTime.now()
-    }
-
-    @PreUpdate
-    fun onUpdate() {
-        updatedAt = LocalDateTime.now()
-    }
-}
+)

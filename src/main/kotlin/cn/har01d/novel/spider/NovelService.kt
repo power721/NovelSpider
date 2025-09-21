@@ -9,6 +9,8 @@ import org.springframework.data.domain.Pageable
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
 import java.util.concurrent.CompletableFuture
 
 @Service
@@ -66,11 +68,24 @@ class NovelService(
 
             // 提取字数
             val wordCountTag = novelItem.selectFirst("em.orange")
-            novel.wordCount = wordCountTag?.text()?.trim() ?: "0万字"
+            val wordCount = wordCountTag?.text()?.trim() ?: "0万字"
+            novel.wordCount = wordCount.replace("万字", "").toLong() * 10000
 
             // 提取更新时间
             val updateTimeTag = novelItem.selectFirst("em.blue")
-            novel.latestUpdate = updateTimeTag?.text()?.trim() ?: "未知时间"
+            val latestUpdate = updateTimeTag?.text()?.trim() ?: "未知时间"
+            if (latestUpdate == "刚刚") {
+                novel.updatedAt = LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES)
+            } else if (latestUpdate.contains("分钟前")) {
+                val minutes = latestUpdate.replace("分钟前", "").toLong()
+                novel.updatedAt = LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES).minusMinutes(minutes)
+            } else if (latestUpdate.contains("小时前")) {
+                val hours = latestUpdate.replace("小时前", "").toLong()
+                novel.updatedAt = LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES).minusHours(hours)
+            } else if (latestUpdate.contains("天前")) {
+                val days = latestUpdate.replace("天前", "").toLong()
+                novel.updatedAt = LocalDateTime.now().truncatedTo(ChronoUnit.DAYS).minusDays(days)
+            }
 
             // 提取描述
             val descTag = novelItem.selectFirst("p.indent")
@@ -85,30 +100,35 @@ class NovelService(
 
     fun getNovelList(page: Int): List<Novel> {
         val novels = mutableListOf<Novel>()
+        var exception: Exception? = null
 
-        try {
-            val url = "$baseUrl/html/$page.html"
-            logger.info("开始爬取第 {} 页 {}", page, url)
+        for (i in 1..3) {
+            try {
+                val url = "$baseUrl/html/$page.html"
+                logger.info("开始爬取第 {} 页 {}", page, url)
 
-            val doc = Jsoup.connect(url)
-                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                .timeout(timeout)
-                .get()
+                val doc = Jsoup.connect(url)
+                    .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .timeout(timeout)
+                    .get()
 
-            val novelItems = doc.select("ul.flex li")
-                .filter { it -> it.selectFirst("h2") != null && it.selectFirst("p.indent") != null }
+                val novelItems = doc.select("ul.flex li")
+                    .filter { it -> it.selectFirst("h2") != null && it.selectFirst("p.indent") != null }
 
-            novelItems.forEach { item ->
-                parseNovelInfo(item)?.let { novels.add(it) }
+                novelItems.forEach { item ->
+                    parseNovelInfo(item)?.let { novels.add(it) }
+                }
+
+                logger.info("第 {} 页获取到 {} 本小说", page, novels.size)
+
+                return novels
+            } catch (e: Exception) {
+                exception = e
+                logger.warn("获取第 {} 页小说列表失败", page, e)
+                Thread.sleep(5000)
             }
-
-            logger.info("第 {} 页获取到 {} 本小说", page, novels.size)
-
-        } catch (e: Exception) {
-            logger.error("获取第 {} 页小说列表失败", page, e)
         }
-
-        return novels
+        throw exception ?: IllegalStateException("获取第${page}页小说列表失败")
     }
 
     @Transactional
@@ -129,7 +149,7 @@ class NovelService(
                     logger.info("第 {} 页爬取完成，处理 {} 本小说", page, novels.size)
 
                     // 延迟避免频繁请求
-                    Thread.sleep(2000)
+                    Thread.sleep(5000)
 
                 } catch (e: Exception) {
                     logger.error("爬取第 {} 页失败", page, e)

@@ -6,7 +6,6 @@ spring:
     username: novel
     password: 5f540c83-a14f-430d-8e0c-a2c9d1f810f9
     driver-class-name: com.mysql.cj.jdbc.Driver
-
   jpa:
     hibernate:
       ddl-auto: update
@@ -14,7 +13,6 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
-    show-sql: true
 
 server:
   port: 3000
@@ -25,6 +23,8 @@ spider:
   max-pages: 5
 
 logging:
+  file:
+    name: logs/app.log
   level:
     cn.har01d.novel.spider: INFO
     org.springframework: WARN
