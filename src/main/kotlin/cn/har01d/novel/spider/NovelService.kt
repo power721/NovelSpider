@@ -9,6 +9,7 @@ import org.springframework.data.domain.Pageable
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.CompletableFuture
@@ -30,6 +31,8 @@ class NovelService(
 
     @Value("\${spider.max-pages:5}")
     private var maxPages: Int = 5
+
+    private var working = false
 
     fun parseNovelInfo(novelItem: Element): Novel? {
         return try {
@@ -75,7 +78,7 @@ class NovelService(
             val updateTimeTag = novelItem.selectFirst("em.blue")
             val latestUpdate = updateTimeTag?.text()?.trim() ?: "未知时间"
             if (latestUpdate == "刚刚") {
-                novel.updatedAt = LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES)
+                novel.updatedAt = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS)
             } else if (latestUpdate.contains("分钟前")) {
                 val minutes = latestUpdate.replace("分钟前", "").toLong()
                 novel.updatedAt = LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES).minusMinutes(minutes)
@@ -85,6 +88,11 @@ class NovelService(
             } else if (latestUpdate.contains("天前")) {
                 val days = latestUpdate.replace("天前", "").toLong()
                 novel.updatedAt = LocalDateTime.now().truncatedTo(ChronoUnit.DAYS).minusDays(days)
+            } else if (latestUpdate.contains("个月前")) {
+                val months = latestUpdate.replace("个月前", "").toLong()
+                novel.updatedAt = LocalDateTime.now().truncatedTo(ChronoUnit.DAYS).minusMonths(months)
+            } else {
+                novel.updatedAt = LocalDate.parse(latestUpdate).atStartOfDay()
             }
 
             // 提取描述
@@ -140,6 +148,7 @@ class NovelService(
     @Async
     fun crawlNovels(pages: Int): CompletableFuture<Void> {
         return CompletableFuture.runAsync {
+            working = true
             for (page in 1..pages) {
                 try {
                     val novels = getNovelList(page)
@@ -150,11 +159,11 @@ class NovelService(
 
                     // 延迟避免频繁请求
                     Thread.sleep(5000)
-
                 } catch (e: Exception) {
                     logger.error("爬取第 {} 页失败", page, e)
                 }
             }
+            working = false
         }
     }
 
@@ -163,6 +172,9 @@ class NovelService(
     }
 
     fun startCrawling() {
+        if (working) {
+            return
+        }
         crawlNovels(maxPages)
     }
 }

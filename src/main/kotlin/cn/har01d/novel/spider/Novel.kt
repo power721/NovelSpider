@@ -4,7 +4,6 @@ import jakarta.persistence.*
 import java.time.LocalDateTime
 
 @Entity
-@Table(name = "novels")
 data class Novel(
     @Id
     var id: Long = 0,
