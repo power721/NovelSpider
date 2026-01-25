@@ -20,7 +20,7 @@ server:
 spider:
   base-url: http://www.999xiaoshuo.cc
   timeout: 10000
-  max-pages: 5
+  max-pages: 10
 
 logging:
   file:

@@ -29,8 +29,8 @@ class NovelService(
     @Value("\${spider.timeout:10000}")
     private var timeout: Int = 10000
 
-    @Value("\${spider.max-pages:5}")
-    private var maxPages: Int = 5
+    @Value("\${spider.max-pages:10}")
+    private var maxPages: Int = 10
 
     private var working = false
 
@@ -116,7 +116,9 @@ class NovelService(
                 logger.info("开始爬取第 {} 页 {}", page, url)
 
                 val doc = Jsoup.connect(url)
-                    .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .userAgent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36")
+                    .referrer("http://www.999xiaoshuo.cc/html/1.html")
+                    .header("cookie", "fontSize=20px; ismini=1; isnight=1; 62c018e476c421a23bee2cf28cf978b0=28b8918b4e82d1352c1af6cf7d3716d9; server_name_session=c570e5ab596085fde0ac25c25e6b570f; zh_choose=")
                     .timeout(timeout)
                     .get()
 
@@ -158,7 +160,7 @@ class NovelService(
                     logger.info("第 {} 页爬取完成，处理 {} 本小说", page, novels.size)
 
                     // 延迟避免频繁请求
-                    Thread.sleep(5000)
+                    Thread.sleep(10000)
                 } catch (e: Exception) {
                     logger.error("爬取第 {} 页失败", page, e)
                 }
