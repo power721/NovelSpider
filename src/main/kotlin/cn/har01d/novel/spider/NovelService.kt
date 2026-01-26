@@ -28,7 +28,8 @@ class NovelService(
         private const val CRAWL_DELAY_MS = 10000L
         private const val CRAWL_DELAY_VARIATION_MS = 1000L
         private const val WORD_COUNT_MULTIPLIER = 10000L
-        private const val USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"
+        private const val USER_AGENT =
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"
     }
 
     @Value("\${spider.base-url:http://www.999xiaoshuo.cc}")
@@ -126,9 +127,10 @@ class NovelService(
                     .ignoreHttpErrors(true)
 
                 val response = connection.execute()
-                val doc = response.parse()
 
                 updateCookiesFromResponse(response)
+
+                val doc = response.parse()
 
                 val novelItems = doc.select("ul.flex li")
                     .filter { n -> n.selectFirst("h2") != null && n.selectFirst("p.indent") != null }
@@ -204,18 +206,22 @@ class NovelService(
                 val minutes = timeStr.replace("分钟前", "").toLong()
                 LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES).minusMinutes(minutes)
             }
+
             timeStr.contains("小时前") -> {
                 val hours = timeStr.replace("小时前", "").toLong()
                 LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES).minusHours(hours)
             }
+
             timeStr.contains("天前") -> {
                 val days = timeStr.replace("天前", "").toLong()
                 LocalDateTime.now().truncatedTo(ChronoUnit.DAYS).minusDays(days)
             }
+
             timeStr.contains("个月前") -> {
                 val months = timeStr.replace("个月前", "").toLong()
                 LocalDateTime.now().truncatedTo(ChronoUnit.DAYS).minusMonths(months)
             }
+
             else -> LocalDate.parse(timeStr).atStartOfDay()
         }
     }
