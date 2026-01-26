@@ -1,5 +1,6 @@
 package cn.har01d.novel.spider
 
+import jakarta.annotation.PostConstruct
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.slf4j.LoggerFactory
@@ -9,6 +10,7 @@ import org.springframework.data.domain.Pageable
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.io.File
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
@@ -30,6 +32,7 @@ class NovelService(
         private const val WORD_COUNT_MULTIPLIER = 10000L
         private const val USER_AGENT =
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"
+        private const val COOKIE_FILE = "cookies.txt"
     }
 
     @Value("\${spider.base-url:http://www.999xiaoshuo.cc}")
@@ -44,7 +47,39 @@ class NovelService(
     private val working = AtomicBoolean(false)
 
     private var cookie =
-        "fontSize=20px; ismini=1; isnight=1; server_name_session=c570e5ab596085fde0ac25c25e6b570f; zh_choose=; 21b687374f9f2d27e97e76ebcbed1570=4586476c1442735e1e083e0bfadac9a7"
+        "fontSize=20px; ismini=1; isnight=1; server_name_session=c570e5ab596085fde0ac25c25e6b570f; 21b687374f9f2d27e97e76ebcbed1570=692740f22aa1e357e1043b306172f70f"
+
+    @PostConstruct
+    fun init() {
+        loadCookiesFromFile()
+    }
+
+    private fun loadCookiesFromFile() {
+        try {
+            val cookieFile = File(COOKIE_FILE)
+            if (cookieFile.exists()) {
+                val savedCookie = cookieFile.readText().trim()
+                if (savedCookie.isNotEmpty()) {
+                    cookie = savedCookie
+                    logger.info("从文件加载 cookie: {}", cookie)
+                }
+            } else {
+                logger.info("Cookie 文件不存在，使用默认 cookie")
+            }
+        } catch (e: Exception) {
+            logger.warn("加载 cookie 文件失败，使用默认 cookie", e)
+        }
+    }
+
+    private fun saveCookiesToFile() {
+        try {
+            val cookieFile = File(COOKIE_FILE)
+            cookieFile.writeText(cookie)
+            logger.debug("Cookie 已保存到文件")
+        } catch (e: Exception) {
+            logger.warn("保存 cookie 到文件失败", e)
+        }
+    }
 
     private fun parseNovelInfo(novelItem: Element): Novel? {
         return try {
@@ -128,20 +163,19 @@ class NovelService(
 
                 val response = connection.execute()
 
-                updateCookiesFromResponse(response)
+                if (!updateCookiesFromResponse(response)) {
+                    val doc = response.parse()
 
-                val doc = response.parse()
+                    val novelItems = doc.select("ul.flex li")
+                        .filter { n -> n.selectFirst("h2") != null && n.selectFirst("p.indent") != null }
 
-                val novelItems = doc.select("ul.flex li")
-                    .filter { n -> n.selectFirst("h2") != null && n.selectFirst("p.indent") != null }
+                    novelItems.forEach { item ->
+                        parseNovelInfo(item)?.let { novels.add(it) }
+                    }
 
-                novelItems.forEach { item ->
-                    parseNovelInfo(item)?.let { novels.add(it) }
+                    logger.info("第 {} 页获取到 {} 本小说", page, novels.size)
+                    return novels
                 }
-
-                logger.info("第 {} 页获取到 {} 本小说", page, novels.size)
-
-                return novels
             } catch (e: Exception) {
                 exception = e
                 logger.warn("获取第 {} 页小说列表失败 (尝试 {}/{})", page, it + 1, MAX_RETRY_ATTEMPTS, e)
@@ -174,6 +208,10 @@ class NovelService(
                         novels.forEach { saveOrUpdateNovel(it) }
 
                         logger.info("第 {} 页爬取完成，处理 {} 本小说", page, novels.size)
+
+                        if (novels.isEmpty()) {
+                            break
+                        }
 
                         // 延迟避免频繁请求
                         Thread.sleep(CRAWL_DELAY_MS + ThreadLocalRandom.current().nextLong(CRAWL_DELAY_VARIATION_MS))
@@ -226,9 +264,9 @@ class NovelService(
         }
     }
 
-    private fun updateCookiesFromResponse(response: org.jsoup.Connection.Response) {
+    private fun updateCookiesFromResponse(response: org.jsoup.Connection.Response): Boolean {
         val setCookies = response.headers("set-cookie")
-        if (setCookies.isEmpty()) return
+        if (setCookies.isEmpty()) return false
 
         val cookieMap = cookie.split("; ")
             .mapNotNull { cookiePair ->
@@ -253,5 +291,7 @@ class NovelService(
             .joinToString("; ") { "${it.key}=${it.value}" }
 
         logger.info("更新 cookie: {}", cookie)
+        saveCookiesToFile()
+        return true
     }
 }
