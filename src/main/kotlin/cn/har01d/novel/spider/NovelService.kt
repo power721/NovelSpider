@@ -43,7 +43,7 @@ class NovelService(
     private val working = AtomicBoolean(false)
 
     private var cookie =
-        "fontSize=20px; ismini=1; isnight=1; server_name_session=c570e5ab596085fde0ac25c25e6b570f; zh_choose=; 21b687374f9f2d27e97e76ebcbed1570=945d80559bf5065382fb81dfab09ae21"
+        "fontSize=20px; ismini=1; isnight=1; server_name_session=c570e5ab596085fde0ac25c25e6b570f; zh_choose=; 21b687374f9f2d27e97e76ebcbed1570=4586476c1442735e1e083e0bfadac9a7"
 
     private fun parseNovelInfo(novelItem: Element): Novel? {
         return try {
@@ -130,7 +130,7 @@ class NovelService(
                 updateCookiesFromResponse(response)
 
                 val novelItems = doc.select("ul.flex li")
-                    .filter { it.selectFirst("h2") != null && it.selectFirst("p.indent") != null }
+                    .filter { n -> n.selectFirst("h2") != null && n.selectFirst("p.indent") != null }
 
                 novelItems.forEach { item ->
                     parseNovelInfo(item)?.let { novels.add(it) }
