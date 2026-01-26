@@ -123,6 +123,7 @@ class NovelService(
                     .referrer(baseUrl)
                     .header("cookie", cookie)
                     .timeout(timeout)
+                    .ignoreHttpErrors(true)
 
                 val response = connection.execute()
                 val doc = response.parse()
