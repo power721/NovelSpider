@@ -13,6 +13,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ThreadLocalRandom
 
 @Service
 class NovelService(
@@ -33,6 +34,9 @@ class NovelService(
     private var maxPages: Int = 10
 
     private var working = false
+
+    private var cookie =
+        "fontSize=20px; ismini=1; isnight=1; server_name_session=c570e5ab596085fde0ac25c25e6b570f; zh_choose=; 21b687374f9f2d27e97e76ebcbed1570=945d80559bf5065382fb81dfab09ae21"
 
     fun parseNovelInfo(novelItem: Element): Novel? {
         return try {
@@ -109,21 +113,49 @@ class NovelService(
     fun getNovelList(page: Int): List<Novel> {
         val novels = mutableListOf<Novel>()
         var exception: Exception? = null
+        var sleep = 5000L
 
         for (i in 1..3) {
             try {
                 val url = "$baseUrl/html/$page.html"
                 logger.info("开始爬取第 {} 页 {}", page, url)
 
-                val doc = Jsoup.connect(url)
+                val connection = Jsoup.connect(url)
                     .userAgent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36")
                     .referrer("http://www.999xiaoshuo.cc/html/1.html")
-                    .header("cookie", "fontSize=20px; ismini=1; isnight=1; 62c018e476c421a23bee2cf28cf978b0=28b8918b4e82d1352c1af6cf7d3716d9; server_name_session=c570e5ab596085fde0ac25c25e6b570f; zh_choose=")
+                    .header("cookie", cookie)
                     .timeout(timeout)
-                    .get()
+
+                val response = connection.execute()
+                val doc = response.parse()
+
+                // 处理 set-cookie 响应头
+                val setCookies = response.headers("set-cookie")
+                if (setCookies.isNotEmpty()) {
+                    val cookieMap = cookie.split("; ").associate {
+                        val parts = it.split("=")
+                        parts[0] to if (parts.size > 1) parts.drop(1).joinToString("=") else ""
+                    }.toMutableMap()
+
+                    setCookies.forEach { setCookie ->
+                        val cookiePair = setCookie.split(";")[0]
+                        val parts = cookiePair.split("=")
+                        if (parts.isNotEmpty()) {
+                            val name = parts[0]
+                            val value = if (parts.size > 1) parts.drop(1).joinToString("=") else ""
+                            cookieMap[name] = value
+                        }
+                    }
+
+                    cookie = cookieMap.entries
+                        .filter { it.value.isNotEmpty() }
+                        .joinToString("; ") { "${it.key}=${it.value}" }
+
+                    logger.info("更新 cookie: {}", cookie)
+                }
 
                 val novelItems = doc.select("ul.flex li")
-                    .filter { it -> it.selectFirst("h2") != null && it.selectFirst("p.indent") != null }
+                    .filter { it.selectFirst("h2") != null && it.selectFirst("p.indent") != null }
 
                 novelItems.forEach { item ->
                     parseNovelInfo(item)?.let { novels.add(it) }
@@ -135,7 +167,8 @@ class NovelService(
             } catch (e: Exception) {
                 exception = e
                 logger.warn("获取第 {} 页小说列表失败", page, e)
-                Thread.sleep(5000)
+                Thread.sleep(sleep)
+                sleep *= 2
             }
         }
         throw exception ?: IllegalStateException("获取第${page}页小说列表失败")
@@ -160,7 +193,7 @@ class NovelService(
                     logger.info("第 {} 页爬取完成，处理 {} 本小说", page, novels.size)
 
                     // 延迟避免频繁请求
-                    Thread.sleep(10000)
+                    Thread.sleep(10000 + ThreadLocalRandom.current().nextInt(1000).toLong())
                 } catch (e: Exception) {
                     logger.error("爬取第 {} 页失败", page, e)
                 }
