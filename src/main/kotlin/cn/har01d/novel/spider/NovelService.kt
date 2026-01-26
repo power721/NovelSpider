@@ -14,6 +14,7 @@ import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ThreadLocalRandom
+import java.util.concurrent.atomic.AtomicBoolean
 
 @Service
 class NovelService(
@@ -22,6 +23,12 @@ class NovelService(
 
     companion object {
         private val logger = LoggerFactory.getLogger(NovelService::class.java)
+        private const val MAX_RETRY_ATTEMPTS = 3
+        private const val INITIAL_RETRY_DELAY_MS = 5000L
+        private const val CRAWL_DELAY_MS = 10000L
+        private const val CRAWL_DELAY_VARIATION_MS = 1000L
+        private const val WORD_COUNT_MULTIPLIER = 10000L
+        private const val USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"
     }
 
     @Value("\${spider.base-url:http://www.999xiaoshuo.cc}")
@@ -33,12 +40,12 @@ class NovelService(
     @Value("\${spider.max-pages:10}")
     private var maxPages: Int = 10
 
-    private var working = false
+    private val working = AtomicBoolean(false)
 
     private var cookie =
         "fontSize=20px; ismini=1; isnight=1; server_name_session=c570e5ab596085fde0ac25c25e6b570f; zh_choose=; 21b687374f9f2d27e97e76ebcbed1570=945d80559bf5065382fb81dfab09ae21"
 
-    fun parseNovelInfo(novelItem: Element): Novel? {
+    private fun parseNovelInfo(novelItem: Element): Novel? {
         return try {
             val novel = Novel()
 
@@ -53,7 +60,14 @@ class NovelService(
                 novelUrl = baseUrl + novelUrl
             }
             novel.novelUrl = novelUrl
-            novel.id = novelUrl.split("/").last().replace(".html", "").toLong()
+
+            val idStr = novelUrl.split("/").last().replace(".html", "")
+            novel.id = try {
+                idStr.toLong()
+            } catch (e: NumberFormatException) {
+                logger.warn("无法解析小说ID: {}", idStr)
+                return null
+            }
 
             // 提取分类和状态
             val categoryStatus = novelItem.selectFirst("span")
@@ -76,28 +90,12 @@ class NovelService(
             // 提取字数
             val wordCountTag = novelItem.selectFirst("em.orange")
             val wordCount = wordCountTag?.text()?.trim() ?: "0万字"
-            novel.wordCount = wordCount.replace("万字", "").toLong() * 10000
+            novel.wordCount = wordCount.replace("万字", "").toLong() * WORD_COUNT_MULTIPLIER
 
             // 提取更新时间
             val updateTimeTag = novelItem.selectFirst("em.blue")
             val latestUpdate = updateTimeTag?.text()?.trim() ?: "未知时间"
-            if (latestUpdate == "刚刚") {
-                novel.updatedAt = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS)
-            } else if (latestUpdate.contains("分钟前")) {
-                val minutes = latestUpdate.replace("分钟前", "").toLong()
-                novel.updatedAt = LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES).minusMinutes(minutes)
-            } else if (latestUpdate.contains("小时前")) {
-                val hours = latestUpdate.replace("小时前", "").toLong()
-                novel.updatedAt = LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES).minusHours(hours)
-            } else if (latestUpdate.contains("天前")) {
-                val days = latestUpdate.replace("天前", "").toLong()
-                novel.updatedAt = LocalDateTime.now().truncatedTo(ChronoUnit.DAYS).minusDays(days)
-            } else if (latestUpdate.contains("个月前")) {
-                val months = latestUpdate.replace("个月前", "").toLong()
-                novel.updatedAt = LocalDateTime.now().truncatedTo(ChronoUnit.DAYS).minusMonths(months)
-            } else {
-                novel.updatedAt = LocalDate.parse(latestUpdate).atStartOfDay()
-            }
+            novel.updatedAt = parseUpdateTime(latestUpdate)
 
             // 提取描述
             val descTag = novelItem.selectFirst("p.indent")
@@ -113,46 +111,23 @@ class NovelService(
     fun getNovelList(page: Int): List<Novel> {
         val novels = mutableListOf<Novel>()
         var exception: Exception? = null
-        var sleep = 5000L
+        var sleep = INITIAL_RETRY_DELAY_MS
 
-        for (i in 1..3) {
+        repeat(MAX_RETRY_ATTEMPTS) {
             try {
                 val url = "$baseUrl/html/$page.html"
                 logger.info("开始爬取第 {} 页 {}", page, url)
 
                 val connection = Jsoup.connect(url)
-                    .userAgent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36")
-                    .referrer("http://www.999xiaoshuo.cc/html/1.html")
+                    .userAgent(USER_AGENT)
+                    .referrer(baseUrl)
                     .header("cookie", cookie)
                     .timeout(timeout)
 
                 val response = connection.execute()
                 val doc = response.parse()
 
-                // 处理 set-cookie 响应头
-                val setCookies = response.headers("set-cookie")
-                if (setCookies.isNotEmpty()) {
-                    val cookieMap = cookie.split("; ").associate {
-                        val parts = it.split("=")
-                        parts[0] to if (parts.size > 1) parts.drop(1).joinToString("=") else ""
-                    }.toMutableMap()
-
-                    setCookies.forEach { setCookie ->
-                        val cookiePair = setCookie.split(";")[0]
-                        val parts = cookiePair.split("=")
-                        if (parts.isNotEmpty()) {
-                            val name = parts[0]
-                            val value = if (parts.size > 1) parts.drop(1).joinToString("=") else ""
-                            cookieMap[name] = value
-                        }
-                    }
-
-                    cookie = cookieMap.entries
-                        .filter { it.value.isNotEmpty() }
-                        .joinToString("; ") { "${it.key}=${it.value}" }
-
-                    logger.info("更新 cookie: {}", cookie)
-                }
+                updateCookiesFromResponse(response)
 
                 val novelItems = doc.select("ul.flex li")
                     .filter { it.selectFirst("h2") != null && it.selectFirst("p.indent") != null }
@@ -166,7 +141,7 @@ class NovelService(
                 return novels
             } catch (e: Exception) {
                 exception = e
-                logger.warn("获取第 {} 页小说列表失败", page, e)
+                logger.warn("获取第 {} 页小说列表失败 (尝试 {}/{})", page, it + 1, MAX_RETRY_ATTEMPTS, e)
                 Thread.sleep(sleep)
                 sleep *= 2
             }
@@ -183,22 +158,30 @@ class NovelService(
     @Async
     fun crawlNovels(pages: Int): CompletableFuture<Void> {
         return CompletableFuture.runAsync {
-            working = true
-            for (page in 1..pages) {
-                try {
-                    val novels = getNovelList(page)
-
-                    novels.forEach { saveOrUpdateNovel(it) }
-
-                    logger.info("第 {} 页爬取完成，处理 {} 本小说", page, novels.size)
-
-                    // 延迟避免频繁请求
-                    Thread.sleep(10000 + ThreadLocalRandom.current().nextInt(1000).toLong())
-                } catch (e: Exception) {
-                    logger.error("爬取第 {} 页失败", page, e)
-                }
+            if (!working.compareAndSet(false, true)) {
+                logger.info("爬虫任务已在运行中，跳过本次执行")
+                return@runAsync
             }
-            working = false
+
+            try {
+                for (page in 1..pages) {
+                    try {
+                        val novels = getNovelList(page)
+
+                        novels.forEach { saveOrUpdateNovel(it) }
+
+                        logger.info("第 {} 页爬取完成，处理 {} 本小说", page, novels.size)
+
+                        // 延迟避免频繁请求
+                        Thread.sleep(CRAWL_DELAY_MS + ThreadLocalRandom.current().nextLong(CRAWL_DELAY_VARIATION_MS))
+                    } catch (e: Exception) {
+                        logger.error("爬取第 {} 页失败", page, e)
+                    }
+                }
+            } finally {
+                working.set(false)
+                logger.info("爬虫任务完成，working 标志已重置")
+            }
         }
     }
 
@@ -207,9 +190,61 @@ class NovelService(
     }
 
     fun startCrawling() {
-        if (working) {
+        if (working.get()) {
             return
         }
         crawlNovels(maxPages)
+    }
+
+    private fun parseUpdateTime(timeStr: String): LocalDateTime {
+        return when {
+            timeStr == "刚刚" -> LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS)
+            timeStr.contains("分钟前") -> {
+                val minutes = timeStr.replace("分钟前", "").toLong()
+                LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES).minusMinutes(minutes)
+            }
+            timeStr.contains("小时前") -> {
+                val hours = timeStr.replace("小时前", "").toLong()
+                LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES).minusHours(hours)
+            }
+            timeStr.contains("天前") -> {
+                val days = timeStr.replace("天前", "").toLong()
+                LocalDateTime.now().truncatedTo(ChronoUnit.DAYS).minusDays(days)
+            }
+            timeStr.contains("个月前") -> {
+                val months = timeStr.replace("个月前", "").toLong()
+                LocalDateTime.now().truncatedTo(ChronoUnit.DAYS).minusMonths(months)
+            }
+            else -> LocalDate.parse(timeStr).atStartOfDay()
+        }
+    }
+
+    private fun updateCookiesFromResponse(response: org.jsoup.Connection.Response) {
+        val setCookies = response.headers("set-cookie")
+        if (setCookies.isEmpty()) return
+
+        val cookieMap = cookie.split("; ")
+            .mapNotNull { cookiePair ->
+                val parts = cookiePair.split("=", limit = 2)
+                if (parts.size == 2) parts[0] to parts[1] else null
+            }
+            .toMap()
+            .toMutableMap()
+
+        setCookies.forEach { setCookie ->
+            val cookiePair = setCookie.split(";")[0]
+            val parts = cookiePair.split("=", limit = 2)
+            if (parts.isNotEmpty()) {
+                val name = parts[0]
+                val value = if (parts.size > 1) parts[1] else ""
+                cookieMap[name] = value
+            }
+        }
+
+        cookie = cookieMap.entries
+            .filter { it.value.isNotEmpty() }
+            .joinToString("; ") { "${it.key}=${it.value}" }
+
+        logger.info("更新 cookie: {}", cookie)
     }
 }
