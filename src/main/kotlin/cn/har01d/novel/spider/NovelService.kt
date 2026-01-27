@@ -49,6 +49,8 @@ class NovelService(
     private var cookie =
         "fontSize=20px; ismini=1; isnight=1; server_name_session=c570e5ab596085fde0ac25c25e6b570f; 21b687374f9f2d27e97e76ebcbed1570=692740f22aa1e357e1043b306172f70f"
 
+    private var errors = 0;
+
     @PostConstruct
     fun init() {
         loadCookiesFromFile()
@@ -173,6 +175,7 @@ class NovelService(
                         parseNovelInfo(item)?.let { novels.add(it) }
                     }
 
+                    errors = 0
                     logger.info("第 {} 页获取到 {} 本小说", page, novels.size)
                     return novels
                 }
@@ -181,6 +184,7 @@ class NovelService(
                 logger.warn("获取第 {} 页小说列表失败 (尝试 {}/{})", page, it + 1, MAX_RETRY_ATTEMPTS, e)
                 Thread.sleep(sleep)
                 sleep *= 2
+                errors++
             }
         }
         throw exception ?: IllegalStateException("获取第${page}页小说列表失败")
@@ -209,7 +213,7 @@ class NovelService(
 
                         logger.info("第 {} 页爬取完成，处理 {} 本小说", page, novels.size)
 
-                        if (novels.isEmpty()) {
+                        if (novels.isEmpty() || errors > 10) {
                             break
                         }
 
