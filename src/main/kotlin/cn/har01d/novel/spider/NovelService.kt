@@ -209,7 +209,7 @@ class NovelService(
             }
 
             try {
-                for (page in start + 1..start + pages) {
+                for (page in start..start + pages) {
                     try {
                         val novels = getNovelList(page)
 

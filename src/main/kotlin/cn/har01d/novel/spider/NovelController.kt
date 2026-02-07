@@ -13,7 +13,7 @@ class NovelController(
 
     @PostMapping("/crawl")
     fun startCrawl(
-        @RequestParam(value = "start", defaultValue = "0") start: Int,
+        @RequestParam(value = "start", defaultValue = "1") start: Int,
         @RequestParam(value = "pages", defaultValue = "5") pages: Int
     ): ResponseEntity<String> {
         novelService.crawlNovels(start, pages)
