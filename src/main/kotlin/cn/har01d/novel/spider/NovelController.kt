@@ -13,9 +13,10 @@ class NovelController(
 
     @PostMapping("/crawl")
     fun startCrawl(
+        @RequestParam(value = "start", defaultValue = "0") start: Int,
         @RequestParam(value = "pages", defaultValue = "5") pages: Int
     ): ResponseEntity<String> {
-        novelService.crawlNovels(pages)
+        novelService.crawlNovels(start, pages)
         return ResponseEntity.ok("爬虫任务已启动，正在爬取 $pages 页数据")
     }
 

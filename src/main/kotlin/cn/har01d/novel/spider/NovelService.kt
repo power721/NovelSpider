@@ -182,8 +182,12 @@ class NovelService(
             } catch (e: Exception) {
                 exception = e
                 logger.warn("获取第 {} 页小说列表失败 (尝试 {}/{})", page, it + 1, MAX_RETRY_ATTEMPTS, e)
-                Thread.sleep(sleep)
-                sleep *= 2
+                if (e.message != null && e.message!!.contains("HTTP/1.1 header parser received no bytes")) {
+                    Thread.sleep(300_000L)
+                } else {
+                    Thread.sleep(sleep)
+                    sleep *= 2
+                }
                 errors++
             }
         }
@@ -197,7 +201,7 @@ class NovelService(
     }
 
     @Async
-    fun crawlNovels(pages: Int): CompletableFuture<Void> {
+    fun crawlNovels(start: Int, pages: Int): CompletableFuture<Void> {
         return CompletableFuture.runAsync {
             if (!working.compareAndSet(false, true)) {
                 logger.info("爬虫任务已在运行中，跳过本次执行")
@@ -205,7 +209,7 @@ class NovelService(
             }
 
             try {
-                for (page in 1..pages) {
+                for (page in start + 1..start + pages) {
                     try {
                         val novels = getNovelList(page)
 
@@ -218,7 +222,7 @@ class NovelService(
                         }
 
                         // 延迟避免频繁请求
-                        Thread.sleep(CRAWL_DELAY_MS + ThreadLocalRandom.current().nextLong(CRAWL_DELAY_VARIATION_MS))
+                        Thread.sleep(CRAWL_DELAY_MS + page * 10 + ThreadLocalRandom.current().nextLong(CRAWL_DELAY_VARIATION_MS))
                     } catch (e: Exception) {
                         logger.error("爬取第 {} 页失败", page, e)
                     }
@@ -238,7 +242,7 @@ class NovelService(
         if (working.get()) {
             return
         }
-        crawlNovels(maxPages)
+        crawlNovels(0, maxPages)
     }
 
     private fun parseUpdateTime(timeStr: String): LocalDateTime {
