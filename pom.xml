@@ -29,6 +29,7 @@
     <properties>
         <java.version>17</java.version>
         <kotlin.version>1.9.25</kotlin.version>
+        <graalvm.version>24.1.1</graalvm.version>
     </properties>
     <dependencies>
         <dependency>
@@ -116,5 +117,57 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>native</id>
+            <properties>
+                <spring.aot.enabled>false</spring.aot.enabled>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-maven-plugin</artifactId>
+                        <configuration>
+                            <image>
+                                <builder>paketobuildpacks/builder:tiny</builder>
+                                <env>
+                                    <BP_NATIVE_IMAGE>true</BP_NATIVE_IMAGE>
+                                </env>
+                            </image>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.graalvm.buildtools</groupId>
+                        <artifactId>native-maven-plugin</artifactId>
+                        <configuration>
+                            <buildArgs>
+                                <arg>--enable-https</arg>
+                                <arg>--no-fallback</arg>
+                                <arg>-H:+UnlockExperimentalVMOptions</arg>
+                                <arg>-H:+ReportExceptionStackTraces</arg>
+                                <arg>-H:ResourceConfigurationFiles=src/main/resources/META-INF/native-image/resource-config.json</arg>
+                                <arg>-H:ReflectionConfigurationFiles=src/main/resources/META-INF/native-image/reflect-config.json</arg>
+                                <arg>-H:DynamicProxyConfigurationFiles=src/main/resources/META-INF/native-image/proxy-config.json</arg>
+                            </buildArgs>
+                            <agent>
+                                <enabled>false</enabled>
+                            </agent>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>build-native</id>
+                                <goals>
+                                    <goal>compile-no-fork</goal>
+                                </goals>
+                                <phase>package</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>

@@ -242,7 +242,7 @@ class NovelService(
         if (working.get()) {
             return
         }
-        crawlNovels(0, maxPages)
+        crawlNovels(1, maxPages)
     }
 
     private fun parseUpdateTime(timeStr: String): LocalDateTime {

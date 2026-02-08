@@ -1,0 +1,27 @@
+{
+  "resources": {
+    "includes": [
+      {
+        "pattern": "application\\.yaml"
+      },
+      {
+        "pattern": "application-.*\\.yaml"
+      },
+      {
+        "pattern": "static/.*"
+      },
+      {
+        "pattern": "META-INF/.*"
+      },
+      {
+        "pattern": "org/hibernate/.*"
+      },
+      {
+        "pattern": "com/fasterxml/jackson/.*"
+      },
+      {
+        "pattern": "META-INF/services/.*"
+      }
+    ]
+  }
+}

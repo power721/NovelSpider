@@ -21,6 +21,75 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 # Skip tests during build
 ./mvnw clean package -DskipTests
+
+# Build GraalVM Native Image (requires GraalVM)
+./mvnw -Pnative clean package
+
+# Build GraalVM Native Image skipping tests
+./mvnw -Pnative clean package -DskipTests
+```
+
+### GraalVM Native Image
+
+The application supports building a native executable using GraalVM for faster startup and lower memory footprint.
+
+**Prerequisites** (for local build):
+- Install GraalVM (version 21 or later)
+- Set `JAVA_HOME` to GraalVM installation
+- Install native-image builder: `gu install native-image`
+
+**Building native image**:
+```bash
+# Step 1: Check your environment
+./check-native-env.sh
+
+# Step 2: Use the convenience script
+./build-native.sh
+
+# Option 2: Build manually
+./mvnw -Pnative clean package
+
+# Option 3: Build with Docker (no GraalVM required)
+docker-compose -f docker-compose.native.yml build
+docker-compose -f docker-compose.native.yml up
+
+# The native executable will be created at:
+# target/NovelSpider (Linux/macOS) or target/NovelSpider.exe (Windows)
+
+# Run the native executable
+./target/NovelSpider
+```
+
+**Benefits**:
+- Instant startup (~100ms vs ~2s)
+- Lower memory footprint (~50MB vs ~200MB)
+- No JVM required for deployment
+
+**Limitations**:
+- Longer build time (~15-30 minutes for native build)
+- Some Java features not supported (reflection, dynamic proxies, etc.)
+- Static web resources must be embedded at build time
+
+**Troubleshooting**:
+See [NATIVE_BUILD_TROUBLESHOOTING.md](NATIVE_BUILD_TROUBLESHOOTING.md) for comprehensive troubleshooting guide including:
+- Common build errors and solutions
+- Debugging techniques
+- Performance optimization
+- Platform-specific issues
+
+Quick reference:
+```bash
+# Check environment before building
+./check-native-env.sh
+
+# If build fails, check the GraalVM configuration files in:
+# src/main/resources/META-INF/native-image/
+
+# Common issues:
+# 1. Missing reflection entries: Add to reflect-config.json
+# 2. Missing resource entries: Add to resource-config.json
+# 3. Hibernate proxy issues: Add to proxy-config.json
+# 4. Kotlin reflection not working: Ensure kotlin-reflect dependency is included
 ```
 
 ### Frontend (Vue 3 + Vite)

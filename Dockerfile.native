@@ -1,0 +1,37 @@
+# Dockerfile for building GraalVM native image
+# Usage: docker build -f Dockerfile.native -t novelspider-native .
+
+# Stage 1: Build native image
+FROM ghcr.io/graalvm/native-image-community:21 AS builder
+WORKDIR /build
+
+# Install build dependencies
+RUN microdnf install -y findutils
+
+# Copy Maven wrapper and project files
+COPY . .
+RUN ./mvnw -Pnative clean package -DskipTests
+
+# Stage 2: Runtime image
+FROM ubuntu:22.04
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy native executable from builder
+COPY --from=builder /build/target/NovelSpider /app/NovelSpider
+
+# Expose port
+EXPOSE 3000
+
+# Set environment variables
+ENV MYSQL_HOST=localhost
+ENV MYSQL_PORT=3306
+ENV MYSQL_DB=novels
+
+# Run the native executable
+CMD ["./NovelSpider"]

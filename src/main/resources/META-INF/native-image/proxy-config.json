@@ -1,0 +1,18 @@
+[
+  [
+    "org.hibernate.proxy.HibernateProxy",
+    "cn.har01d.novel.spider.Novel"
+  ],
+  [
+    "org.springframework.cglib.proxy.Factory",
+    "cn.har01d.novel.spider.Novel"
+  ],
+  [
+    "java.util.List",
+    "java.util.ArrayList"
+  ],
+  [
+    "java.util.Collection",
+    "java.util.ArrayList"
+  ]
+]
