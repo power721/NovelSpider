@@ -9,7 +9,8 @@ const API = "http://127.0.0.1:3000";
 // https://vite.dev/config/
 export default defineConfig({
   build: {
-    outDir: "../src/main/resources/static"
+    outDir: "../src/main/resources/static",
+    emptyOutDir: true,
   },
   plugins: [
     vue(),

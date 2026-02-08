@@ -197,7 +197,7 @@ class NovelService(
     @Transactional
     fun saveOrUpdateNovel(novel: Novel) {
         novelRepository.save(novel)
-        logger.info("保存小说: {} {} - {}", novel.novelUrl, novel.title, novel.author)
+        logger.info("保存小说: {} {} - {} - {}万", novel.novelUrl, novel.title, novel.author, novel.wordCount / 10000)
     }
 
     @Async

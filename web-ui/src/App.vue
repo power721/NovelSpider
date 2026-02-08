@@ -97,7 +97,10 @@
 
 <script setup>
 import {onMounted, ref} from "vue"
+import { useDark } from '@vueuse/core'
 import axios from "axios"
+
+useDark()
 
 const query = ref("")
 const sort = ref("updatedAt,desc")
