@@ -222,7 +222,9 @@ class NovelService(
                         }
 
                         // 延迟避免频繁请求
-                        Thread.sleep(CRAWL_DELAY_MS + page * 10 + ThreadLocalRandom.current().nextLong(CRAWL_DELAY_VARIATION_MS))
+                        Thread.sleep(CRAWL_DELAY_MS + (page - start) * 10
+                                    + ThreadLocalRandom.current().nextLong(CRAWL_DELAY_VARIATION_MS)
+                        )
                     } catch (e: Exception) {
                         logger.error("爬取第 {} 页失败", page, e)
                     }
